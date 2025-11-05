@@ -1,13 +1,40 @@
 // Suppress AxFlow deprecation warnings from library that Railway treats as errors
-// Override console.error temporarily to filter out this specific warning
+// Override console methods BEFORE anything else runs to filter out this specific warning
 const originalConsoleError = console.error;
+const originalConsoleWarn = console.warn;
+const originalConsoleLog = console.log;
+
+const filterAxFlowWarning = (message: string): boolean => {
+  return message.includes('new AxFlow() is deprecated') || 
+         message.includes('[AxFlow]') ||
+         (message.includes('AxFlow') && message.includes('deprecated')) ||
+         (message.includes('flow() factory'));
+};
+
+// Intercept all console methods to catch the warning
 console.error = (...args: any[]) => {
-  const message = args[0]?.toString() || '';
-  // Filter out the AxFlow deprecation warning that Railway treats as an error
-  if (message.includes('new AxFlow() is deprecated') || message.includes('[AxFlow]')) {
+  const message = args.map(arg => String(arg)).join(' ');
+  if (filterAxFlowWarning(message)) {
     return; // Suppress this warning - it's from inside the library
   }
   originalConsoleError.apply(console, args);
+};
+
+console.warn = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  if (filterAxFlowWarning(message)) {
+    return; // Suppress this warning - it's from inside the library
+  }
+  originalConsoleWarn.apply(console, args);
+};
+
+// Also intercept console.log in case it's logged there
+console.log = (...args: any[]) => {
+  const message = args.map(arg => String(arg)).join(' ');
+  if (filterAxFlowWarning(message)) {
+    return; // Suppress this warning - it's from inside the library
+  }
+  originalConsoleLog.apply(console, args);
 };
 
 // Normalize private key BEFORE any imports that might read it
