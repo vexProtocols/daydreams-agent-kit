@@ -70,6 +70,9 @@ if (privateKeyValue && privateKeyValue.length === 64) {
       privateKeyBytes[i] = parseInt(privateKeyValue.slice(i * 2, i * 2 + 2), 16);
     }
     console.log(`[daydreams-news] Private key converted to Uint8Array (${privateKeyBytes.length} bytes)`);
+    // Remove from env to prevent library from reading it as a string
+    // We'll pass it directly as a parameter instead
+    delete process.env.PRIVATE_KEY;
   } catch (error) {
     console.warn(`[daydreams-news] Failed to convert private key to bytes:`, error);
   }
@@ -87,11 +90,10 @@ let axClientConfig: any = {
   },
 };
 
-// Pass as Uint8Array if available, otherwise let library read from env
+// Pass as Uint8Array if available - this prevents the library from reading the string from env
 if (privateKeyBytes) {
   axClientConfig.privateKey = privateKeyBytes;
-  // Also keep it in env as fallback
-  process.env.PRIVATE_KEY = privateKeyValue;
+  console.log(`[daydreams-news] Passing private key as Uint8Array to createAxLLMClient`);
 }
 
 const axClient = createAxLLMClient(axClientConfig);
