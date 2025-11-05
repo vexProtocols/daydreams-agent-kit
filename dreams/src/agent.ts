@@ -29,7 +29,32 @@ const configOverrides: AgentKitConfig = {
   },
 };
 
+// Normalize private key: remove 0x prefix, trim whitespace, ensure it's a valid hex string
+function normalizePrivateKey(key: string | undefined): string | Uint8Array | undefined {
+  if (!key) return undefined;
+  const normalized = key.trim().replace(/^0x/i, "").replace(/\s+/g, "");
+  if (normalized.length !== 64 || !/^[0-9a-fA-F]+$/.test(normalized)) {
+    console.warn(`[daydreams-news] Invalid private key format: expected 64-char hex, got ${normalized.length} chars`);
+    return undefined;
+  }
+  const hexString = normalized.toLowerCase();
+  // Convert hex string to Uint8Array (32 bytes) as the library expects
+  try {
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = parseInt(hexString.slice(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+  } catch (error) {
+    console.warn(`[daydreams-news] Failed to convert private key to bytes:`, error);
+    return undefined;
+  }
+}
+
+const normalizedPrivateKey = normalizePrivateKey(process.env.PRIVATE_KEY);
+
 const axClient = createAxLLMClient({
+  ...(normalizedPrivateKey ? { privateKey: normalizedPrivateKey } : {}),
   logger: {
     warn(message, error) {
       if (error) {
