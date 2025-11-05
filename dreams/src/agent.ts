@@ -350,4 +350,16 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+// Add root route handler for health checks
+app.get("/", (c) => {
+  return c.json({
+    status: "ok",
+    service: "daydreams-news-agent",
+    version: "0.1.0",
+    endpoints: {
+      agent: "/.well-known/agent.json",
+    },
+  });
+});
+
 export { app };
