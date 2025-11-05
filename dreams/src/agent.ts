@@ -1,3 +1,18 @@
+// Normalize private key BEFORE any imports that might read it
+if (process.env.PRIVATE_KEY) {
+  const rawKey = process.env.PRIVATE_KEY;
+  const normalized = rawKey.trim().replace(/^0x/i, "").replace(/\s+/g, "").replace(/['"]/g, "");
+  
+  if (normalized.length === 64 && /^[0-9a-fA-F]+$/.test(normalized)) {
+    process.env.PRIVATE_KEY = normalized.toLowerCase();
+  } else {
+    console.warn(
+      `[daydreams-news] Invalid private key format: expected 64-char hex, got length ${normalized.length}. Clearing PRIVATE_KEY.`
+    );
+    delete process.env.PRIVATE_KEY;
+  }
+}
+
 import { z } from "zod";
 import {
   createAgentApp,
@@ -29,21 +44,6 @@ const configOverrides: AgentKitConfig = {
   },
 };
 
-// Normalize private key in environment variable before library reads it
-// The library reads from process.env.PRIVATE_KEY directly, so we need to normalize it there
-if (process.env.PRIVATE_KEY) {
-  const rawKey = process.env.PRIVATE_KEY;
-  const normalized = rawKey.trim().replace(/^0x/i, "").replace(/\s+/g, "");
-  if (normalized.length === 64 && /^[0-9a-fA-F]+$/.test(normalized)) {
-    // Set the normalized key back to the environment variable
-    process.env.PRIVATE_KEY = normalized.toLowerCase();
-  } else {
-    console.warn(
-      `[daydreams-news] Invalid private key format: expected 64-char hex, got ${normalized.length} chars. Clearing PRIVATE_KEY.`
-    );
-    delete process.env.PRIVATE_KEY;
-  }
-}
 
 const axClient = createAxLLMClient({
   logger: {
