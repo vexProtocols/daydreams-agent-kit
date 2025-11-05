@@ -57,8 +57,24 @@ const configOverrides: AgentKitConfig = {
 };
 
 
-// Try to pass private key directly if available
+// Convert private key to Uint8Array (32 bytes) format that the library expects
+// The library's normPrivateKeyToScalar function rejects plain strings
+let privateKeyBytes: Uint8Array | undefined = undefined;
 const privateKeyValue = process.env.PRIVATE_KEY;
+
+if (privateKeyValue && privateKeyValue.length === 64) {
+  try {
+    // Convert hex string to Uint8Array (32 bytes)
+    privateKeyBytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      privateKeyBytes[i] = parseInt(privateKeyValue.slice(i * 2, i * 2 + 2), 16);
+    }
+    console.log(`[daydreams-news] Private key converted to Uint8Array (${privateKeyBytes.length} bytes)`);
+  } catch (error) {
+    console.warn(`[daydreams-news] Failed to convert private key to bytes:`, error);
+  }
+}
+
 let axClientConfig: any = {
   logger: {
     warn(message, error) {
@@ -71,11 +87,11 @@ let axClientConfig: any = {
   },
 };
 
-// If we have a normalized private key, try passing it directly
-// The library might accept it as a parameter instead of reading from env
-if (privateKeyValue && privateKeyValue.length === 64) {
-  // Try as hex string first
-  axClientConfig.privateKey = privateKeyValue;
+// Pass as Uint8Array if available, otherwise let library read from env
+if (privateKeyBytes) {
+  axClientConfig.privateKey = privateKeyBytes;
+  // Also keep it in env as fallback
+  process.env.PRIVATE_KEY = privateKeyValue;
 }
 
 const axClient = createAxLLMClient(axClientConfig);
