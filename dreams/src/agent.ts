@@ -1,16 +1,28 @@
 // Normalize private key BEFORE any imports that might read it
+// Convert to Uint8Array format (32 bytes) that the library expects
 if (process.env.PRIVATE_KEY) {
   const rawKey = process.env.PRIVATE_KEY;
   const normalized = rawKey.trim().replace(/^0x/i, "").replace(/\s+/g, "").replace(/['"]/g, "");
   
   if (normalized.length === 64 && /^[0-9a-fA-F]+$/.test(normalized)) {
-    process.env.PRIVATE_KEY = normalized.toLowerCase();
+    const hexString = normalized.toLowerCase();
+    // Convert hex string to Uint8Array (32 bytes)
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = parseInt(hexString.slice(i * 2, i * 2 + 2), 16);
+    }
+    // Convert back to hex string (without 0x) for the library
+    // The library should accept this format
+    process.env.PRIVATE_KEY = hexString;
+    console.log(`[daydreams-news] Private key normalized: ${hexString.substring(0, 8)}...${hexString.substring(56)} (${hexString.length} chars)`);
   } else {
     console.warn(
-      `[daydreams-news] Invalid private key format: expected 64-char hex, got length ${normalized.length}. Clearing PRIVATE_KEY.`
+      `[daydreams-news] Invalid private key format: expected 64-char hex, got "${normalized.substring(0, 20)}..." (length: ${normalized.length}). Clearing PRIVATE_KEY.`
     );
     delete process.env.PRIVATE_KEY;
   }
+} else {
+  console.warn(`[daydreams-news] PRIVATE_KEY environment variable not set - LLM features will be disabled`);
 }
 
 import { z } from "zod";
@@ -45,7 +57,9 @@ const configOverrides: AgentKitConfig = {
 };
 
 
-const axClient = createAxLLMClient({
+// Try to pass private key directly if available
+const privateKeyValue = process.env.PRIVATE_KEY;
+let axClientConfig: any = {
   logger: {
     warn(message, error) {
       if (error) {
@@ -55,7 +69,16 @@ const axClient = createAxLLMClient({
       }
     },
   },
-});
+};
+
+// If we have a normalized private key, try passing it directly
+// The library might accept it as a parameter instead of reading from env
+if (privateKeyValue && privateKeyValue.length === 64) {
+  // Try as hex string first
+  axClientConfig.privateKey = privateKeyValue;
+}
+
+const axClient = createAxLLMClient(axClientConfig);
 
 if (!axClient.isConfigured()) {
   console.warn(
