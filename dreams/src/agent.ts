@@ -57,6 +57,10 @@ const configOverrides: AgentKitConfig = {
 let axClientConfig: any = {
   logger: {
     warn(message, error) {
+      // Filter out the harmless AxFlow deprecation warning from inside the library
+      if (typeof message === 'string' && message.includes('new AxFlow() is deprecated')) {
+        return; // Suppress this warning - it's from inside the library, not our code
+      }
       if (error) {
         console.warn(`[daydreams-news] ${message}`, error);
       } else {
