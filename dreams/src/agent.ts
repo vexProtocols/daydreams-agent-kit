@@ -54,7 +54,7 @@ const daydreamsNewsFlow = flow<{ articles: string }>()
   )
   .node(
     "bulletGenerator",
-    'articles:string summary:string -> highlights:string[] "Return up to five bullet highlights referencing distinct Daydreams announcements."'
+    'articles:string, summary:string -> highlights:string[] "Return up to five bullet highlights referencing distinct Daydreams announcements."'
   )
   .execute("summarizer", (state) => ({
     articles: state.articles,
