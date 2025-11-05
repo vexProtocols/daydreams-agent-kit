@@ -32,6 +32,7 @@ import {
   AgentKitConfig,
 } from "@lucid-dreams/agent-kit";
 import { flow } from "@ax-llm/ax";
+import { privateKeyToAccount } from "viem/accounts";
 
 type DaydreamsNewsItem = {
   title: string;
@@ -57,24 +58,33 @@ const configOverrides: AgentKitConfig = {
 };
 
 
-// Convert private key to Uint8Array (32 bytes) format that the library expects
-// The library's normPrivateKeyToScalar function rejects plain strings
-let privateKeyBytes: Uint8Array | undefined = undefined;
+// Convert private key and create account object that the library expects
+// The library accepts either an 'account' object or a 'privateKey' (as hex string or bytes)
+let account: any = undefined;
 const privateKeyValue = process.env.PRIVATE_KEY;
 
 if (privateKeyValue && privateKeyValue.length === 64) {
   try {
-    // Convert hex string to Uint8Array (32 bytes)
-    privateKeyBytes = new Uint8Array(32);
-    for (let i = 0; i < 32; i++) {
-      privateKeyBytes[i] = parseInt(privateKeyValue.slice(i * 2, i * 2 + 2), 16);
-    }
-    console.log(`[daydreams-news] Private key converted to Uint8Array (${privateKeyBytes.length} bytes)`);
-    // Remove from env to prevent library from reading it as a string
-    // We'll pass it directly as a parameter instead
-    delete process.env.PRIVATE_KEY;
+    // Try creating an account from the private key using viem
+    // This should create a proper account object the library can use
+    account = privateKeyToAccount(`0x${privateKeyValue}` as `0x${string}`);
+    console.log(`[daydreams-news] Account created from private key: ${account.address}`);
+    // Keep the env var but normalized - library might read it as fallback
+    process.env.PRIVATE_KEY = privateKeyValue;
   } catch (error) {
-    console.warn(`[daydreams-news] Failed to convert private key to bytes:`, error);
+    console.warn(`[daydreams-news] Failed to create account from private key:`, error);
+    // Fallback: convert to bytes and pass as privateKey
+    try {
+      const privateKeyBytes = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) {
+        privateKeyBytes[i] = parseInt(privateKeyValue.slice(i * 2, i * 2 + 2), 16);
+      }
+      console.log(`[daydreams-news] Using private key as Uint8Array fallback`);
+      process.env.PRIVATE_KEY = privateKeyValue;
+    } catch (bytesError) {
+      console.warn(`[daydreams-news] Failed to convert to bytes:`, bytesError);
+      delete process.env.PRIVATE_KEY;
+    }
   }
 }
 
@@ -90,10 +100,10 @@ let axClientConfig: any = {
   },
 };
 
-// Pass as Uint8Array if available - this prevents the library from reading the string from env
-if (privateKeyBytes) {
-  axClientConfig.privateKey = privateKeyBytes;
-  console.log(`[daydreams-news] Passing private key as Uint8Array to createAxLLMClient`);
+// Pass account if available - this is what the library expects
+if (account) {
+  axClientConfig.account = account;
+  console.log(`[daydreams-news] Passing account object to createAxLLMClient`);
 }
 
 const axClient = createAxLLMClient(axClientConfig);
