@@ -1,3 +1,15 @@
+// Suppress AxFlow deprecation warnings from library that Railway treats as errors
+// Override console.error temporarily to filter out this specific warning
+const originalConsoleError = console.error;
+console.error = (...args: any[]) => {
+  const message = args[0]?.toString() || '';
+  // Filter out the AxFlow deprecation warning that Railway treats as an error
+  if (message.includes('new AxFlow() is deprecated') || message.includes('[AxFlow]')) {
+    return; // Suppress this warning - it's from inside the library
+  }
+  originalConsoleError.apply(console, args);
+};
+
 // Normalize private key BEFORE any imports that might read it
 // The library expects a 32-byte hex string WITH 0x prefix
 if (process.env.PRIVATE_KEY) {
