@@ -1,23 +1,18 @@
 // Normalize private key BEFORE any imports that might read it
-// Convert to Uint8Array format (32 bytes) that the library expects
+// The library expects a 32-byte hex string WITH 0x prefix
 if (process.env.PRIVATE_KEY) {
   const rawKey = process.env.PRIVATE_KEY;
+  // Remove any existing 0x, normalize, then add 0x back
   const normalized = rawKey.trim().replace(/^0x/i, "").replace(/\s+/g, "").replace(/['"]/g, "");
   
   if (normalized.length === 64 && /^[0-9a-fA-F]+$/.test(normalized)) {
     const hexString = normalized.toLowerCase();
-    // Convert hex string to Uint8Array (32 bytes)
-    const bytes = new Uint8Array(32);
-    for (let i = 0; i < 32; i++) {
-      bytes[i] = parseInt(hexString.slice(i * 2, i * 2 + 2), 16);
-    }
-    // Convert back to hex string (without 0x) for the library
-    // The library should accept this format
-    process.env.PRIVATE_KEY = hexString;
-    console.log(`[daydreams-news] Private key normalized: ${hexString.substring(0, 8)}...${hexString.substring(56)} (${hexString.length} chars)`);
+    // Library expects 0x prefix - add it back
+    process.env.PRIVATE_KEY = `0x${hexString}`;
+    console.log(`[daydreams-news] Private key normalized with 0x prefix: 0x${hexString.substring(0, 8)}...${hexString.substring(56)}`);
   } else {
     console.warn(
-      `[daydreams-news] Invalid private key format: expected 64-char hex, got "${normalized.substring(0, 20)}..." (length: ${normalized.length}). Clearing PRIVATE_KEY.`
+      `[daydreams-news] Invalid private key format: expected 64-char hex, got length ${normalized.length}. Clearing PRIVATE_KEY.`
     );
     delete process.env.PRIVATE_KEY;
   }
@@ -32,7 +27,6 @@ import {
   AgentKitConfig,
 } from "@lucid-dreams/agent-kit";
 import { flow } from "@ax-llm/ax";
-import { privateKeyToAccount } from "viem/accounts";
 
 type DaydreamsNewsItem = {
   title: string;
@@ -58,36 +52,8 @@ const configOverrides: AgentKitConfig = {
 };
 
 
-// Convert private key and create account object that the library expects
-// The library accepts either an 'account' object or a 'privateKey' (as hex string or bytes)
-let account: any = undefined;
-const privateKeyValue = process.env.PRIVATE_KEY;
-
-if (privateKeyValue && privateKeyValue.length === 64) {
-  try {
-    // Try creating an account from the private key using viem
-    // This should create a proper account object the library can use
-    account = privateKeyToAccount(`0x${privateKeyValue}` as `0x${string}`);
-    console.log(`[daydreams-news] Account created from private key: ${account.address}`);
-    // Keep the env var but normalized - library might read it as fallback
-    process.env.PRIVATE_KEY = privateKeyValue;
-  } catch (error) {
-    console.warn(`[daydreams-news] Failed to create account from private key:`, error);
-    // Fallback: convert to bytes and pass as privateKey
-    try {
-      const privateKeyBytes = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) {
-        privateKeyBytes[i] = parseInt(privateKeyValue.slice(i * 2, i * 2 + 2), 16);
-      }
-      console.log(`[daydreams-news] Using private key as Uint8Array fallback`);
-      process.env.PRIVATE_KEY = privateKeyValue;
-    } catch (bytesError) {
-      console.warn(`[daydreams-news] Failed to convert to bytes:`, bytesError);
-      delete process.env.PRIVATE_KEY;
-    }
-  }
-}
-
+// The library reads PRIVATE_KEY from env and expects it with 0x prefix
+// We've already normalized it above, so just let the library read it from env
 let axClientConfig: any = {
   logger: {
     warn(message, error) {
@@ -99,12 +65,6 @@ let axClientConfig: any = {
     },
   },
 };
-
-// Pass account if available - this is what the library expects
-if (account) {
-  axClientConfig.account = account;
-  console.log(`[daydreams-news] Passing account object to createAxLLMClient`);
-}
 
 const axClient = createAxLLMClient(axClientConfig);
 
