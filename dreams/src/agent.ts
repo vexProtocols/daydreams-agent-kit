@@ -28,10 +28,12 @@ console.warn = (...args: any[]) => {
   originalConsoleWarn.apply(console, args);
 };
 
-// Also intercept console.log in case it's logged there
+// Also intercept console.log but ONLY filter AxFlow warnings, not startup messages
 console.log = (...args: any[]) => {
   const message = args.map(arg => String(arg)).join(' ');
-  if (filterAxFlowWarning(message)) {
+  // Only suppress if it's clearly an AxFlow deprecation warning
+  // Don't suppress startup messages, error logs, or other important info
+  if (filterAxFlowWarning(message) && message.includes('deprecated')) {
     return; // Suppress this warning - it's from inside the library
   }
   originalConsoleLog.apply(console, args);
