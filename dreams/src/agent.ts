@@ -86,7 +86,7 @@ const configOverrides: AgentKitConfig = {
       "https://facilitator.daydreams.systems",
     payTo:
       (process.env.PAY_TO as `0x${string}` | undefined) ??
-      "0xb308ed39d67D0d4BAe5BC2FAEF60c66BBb6AE429",
+      "0xb7f90d83b371aee1250021732b8e5ac05198940f",
     network: (process.env.NETWORK as any) ?? "base",
     defaultPrice: process.env.DEFAULT_PRICE ?? "0.1",
   },
