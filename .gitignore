@@ -72,6 +72,27 @@ web_modules/
 .env.*
 !.env.example
 
+# Sensitive files - NEVER commit these
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cert
+*secret*
+*private*
+*credential*
+*password*
+*token*
+secrets/
+credentials/
+.env.local
+.env.production
+.env.development
+.env.test
+.env.staging
+.env.*.local
+
 # parcel-bundler cache (https://parceljs.org/)
 .parcel-cache
 
