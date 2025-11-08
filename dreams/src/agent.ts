@@ -97,7 +97,7 @@ const configOverrides: AgentKitConfig = {
 // We've already normalized it above, so just let the library read it from env
 let axClientConfig: any = {
   logger: {
-    warn(message, error) {
+    warn(message: unknown, error?: unknown) {
       // Filter out the harmless AxFlow deprecation warning from inside the library
       if (typeof message === 'string' && message.includes('new AxFlow() is deprecated')) {
         return; // Suppress this warning - it's from inside the library, not our code
