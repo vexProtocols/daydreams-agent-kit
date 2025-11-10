@@ -15,17 +15,29 @@ process.on("unhandledRejection", (reason, promise) => {
 async function startServer() {
   try {
     const { app } = await import("./agent");
-    const hostname = process.env.HOSTNAME ?? "0.0.0.0";
+    // Railway sets HOSTNAME to container hostname, but we MUST bind to 0.0.0.0
+    // to be reachable from Railway's proxy. Force 0.0.0.0 on Railway.
+    const isRailway = Boolean(
+      process.env.RAILWAY_PROJECT_ID || 
+      process.env.RAILWAY_ENVIRONMENT ||
+      process.env.RAILWAY_SERVICE_NAME
+    );
+    const hostname = isRailway ? "0.0.0.0" : (process.env.HOSTNAME ?? "0.0.0.0");
 
     const { server, port } = createServerWithFallback(app.fetch, hostname);
 
     console.log(`[startup] Starting server on ${hostname}:${port}...`);
-    console.log(`[startup] PORT=${port}, HOSTNAME=${hostname}`);
+    console.log(`[startup] PORT=${port}, HOSTNAME=${hostname}${isRailway ? " (Railway detected, forced 0.0.0.0)" : ""}`);
     console.log("[startup] ✅ Server started successfully");
     console.log(
-      `[startup] 🚀 Agent ready at http://${server.hostname}:${server.port}/.well-known/agent.json`
+      `[startup] 🚀 Agent ready at http://${hostname}:${port}/.well-known/agent.json`
     );
-    console.log(`[startup] Health check: http://${server.hostname}:${server.port}/`);
+    console.log(`[startup] Health check: http://${hostname}:${port}/`);
+    
+    // Keep process alive - don't exit
+    process.on("beforeExit", () => {
+      console.log("[startup] Process about to exit, keeping alive...");
+    });
 
     // Graceful shutdown
     process.on("SIGTERM", () => {
