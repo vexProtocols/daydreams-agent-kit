@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@lucid-agents/core": "^1.5.2",
+    "@lucid-agents/hono": "^0.4.2",
     "@lucid-agents/types": "^1.1.1",
     "zod": "^4.1.12"
   },

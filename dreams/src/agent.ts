@@ -62,10 +62,8 @@ if (process.env.PRIVATE_KEY) {
 }
 
 import { z } from "zod";
-import {
-  createAgentApp,
-  createAxLLMClient,
-} from "@lucid-agents/core";
+import { createAgentApp } from "@lucid-agents/hono";
+import { createAxLLMClient } from "@lucid-agents/core/axllm";
 import type { PaymentsConfig } from "@lucid-agents/types";
 import { flow } from "@ax-llm/ax";
 
