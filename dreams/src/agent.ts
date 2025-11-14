@@ -65,8 +65,8 @@ import { z } from "zod";
 import {
   createAgentApp,
   createAxLLMClient,
-  AgentKitConfig,
-} from "@lucid-dreams/agent-kit";
+} from "@lucid-agents/core";
+import type { PaymentsConfig } from "@lucid-agents/types";
 import { flow } from "@ax-llm/ax";
 
 type DaydreamsNewsItem = {
@@ -79,7 +79,7 @@ type DaydreamsNewsItem = {
 
 const DEFAULT_NEWS_URL = "https://daydreams.systems/api/news/latest";
 
-const configOverrides: AgentKitConfig = {
+const configOverrides: { payments: PaymentsConfig } = {
   payments: {
     facilitatorUrl:
       (process.env.FACILITATOR_URL as any) ??
