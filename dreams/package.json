@@ -13,9 +13,9 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@lucid-agents/core": "^1.5.2",
-    "@lucid-agents/hono": "^0.4.2",
-    "@lucid-agents/types": "^1.1.1",
+    "@lucid-agents/core": "^1.9.0",
+    "@lucid-agents/hono": "^0.7.1",
+    "@lucid-agents/types": "^1.5.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

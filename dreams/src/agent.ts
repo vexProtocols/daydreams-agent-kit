@@ -86,7 +86,6 @@ const configOverrides: { payments: PaymentsConfig } = {
       (process.env.PAY_TO as `0x${string}` | undefined) ??
       "0xb7f90d83b371aee1250021732b8e5ac05198940f",
     network: (process.env.NETWORK as any) ?? "base",
-    defaultPrice: process.env.DEFAULT_PRICE ?? "0.1",
   },
 };
 
@@ -143,17 +142,25 @@ const daydreamsNewsFlow = flow<{ articles: string }>()
       : [],
   }));
 
-const { app, addEntrypoint } = createAgentApp(
+// Create agent runtime with metadata and payments config
+const agentApp = await createAgentApp(
   {
-    name: "daydreams-news-agent",
-    version: "0.1.0",
-    description:
-      "Summarises the latest Daydreams ecosystem news with AxFlow each time it is called.",
-  },
-  {
-    config: configOverrides,
-  }
+    agent: {
+      meta: {
+        name: "daydreams-news-agent",
+        version: "0.1.0",
+        description:
+          "Summarises the latest Daydreams ecosystem news with AxFlow each time it is called.",
+      },
+    },
+    payments: {
+      config: configOverrides.payments,
+    },
+  } as any,
+  {}
 );
+
+const { app, addEntrypoint } = agentApp;
 
 addEntrypoint({
   key: "latest-daydreams-news",
@@ -182,7 +189,7 @@ addEntrypoint({
       })
     ),
   }),
-  async handler(ctx) {
+  async handler(ctx: any) {
     const limitInput = ctx.input?.limit;
     const limit =
       typeof limitInput === "number" && Number.isInteger(limitInput)
@@ -394,7 +401,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 // Add root route handler for health checks
-app.get("/", (c) => {
+app.get("/", (c: any) => {
   return c.json({
     status: "ok",
     service: "daydreams-news-agent",
