@@ -176,10 +176,26 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       await next();
     });
   },
-  // REMOVED afterMount - let the library handle ALL routes
-  // The payment middleware (registered via app.use in withPayments) handles GET/HEAD
-  // The library registers POST routes for entrypoints
-  // Custom handlers were interfering with the payment flow
+  afterMount: (app) => {
+    // The library only registers POST routes for entrypoints
+    // Payment middleware handles GET/HEAD via app.use(), but Hono needs route handlers
+    // Add minimal GET/HEAD handlers that work with the middleware
+    
+    // GET: Payment middleware returns 402 if no payment, or calls next() if payment exists
+    // We need a handler to prevent 404 when middleware calls next()
+    app.get("/entrypoints/:key/invoke", async (c: any, next: any) => {
+      // If middleware didn't return (payment exists), we shouldn't reach here for GET
+      // But if we do, return payment requirement
+      await next();
+      return c.json({ error: "X-PAYMENT header is required" }, 402);
+    });
+    
+    // HEAD: Just needs to exist for payment gateway checks
+    app.head("/entrypoints/:key/invoke", async (c: any) => {
+      // Payment middleware handles this, but we need the route to exist
+      return new Response(null, { status: 200 });
+    });
+  },
 });
 
 addEntrypoint({
