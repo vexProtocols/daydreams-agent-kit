@@ -220,13 +220,10 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
             }
           }
           
-          // Call the entrypoint handler directly via the runtime
-          // We need to access the runtime to get the handler
-          // For now, return error telling client to use POST
-          return c.json({
-            error: "Use POST method for payment requests",
-            message: "This endpoint requires POST method when X-PAYMENT header is present. Please use POST instead of GET.",
-          }, 405);
+          // Call the runtime's invoke handler directly
+          // This mimics what the POST handler does
+          const response = await runtime.handlers.invoke(c.req.raw, { key });
+          return response;
         } catch (error) {
           console.error(`[route-debug] Error handling GET with payment:`, error);
           return c.json({ error: "Internal server error" }, 500);
