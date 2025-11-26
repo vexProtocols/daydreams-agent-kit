@@ -177,44 +177,40 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // ROOT CAUSE: Library only registers POST routes for entrypoints
-    // Payment gateway needs GET/HEAD routes, but library doesn't create them
-    // Payment middleware (via app.use) runs for all methods, but needs route handlers
+    // ROOT CAUSE FIX: Library only registers POST routes for entrypoints
+    // Payment middleware runs via app.use() but needs route handlers to work
+    // Add GET/HEAD handlers BEFORE calling next() to prevent 404
     
-    // Add GET and HEAD handlers that work with existing payment middleware
-    // The middleware will intercept and return 402 if payment required
+    // Register GET handler - payment middleware will intercept and return 402
+    // But we need the route to exist so middleware can run
+    app.get("/entrypoints/:key/invoke", async (c: any, next: any) => {
+      // Let payment middleware run first (it's registered via app.use)
+      // Middleware will return 402 if no payment, or call next() if payment present
+      await next();
+      // If we reach here, middleware didn't return (shouldn't happen for GET without payment)
+      // Return payment requirement as fallback
+      return c.json({
+        error: "X-PAYMENT header is required",
+        accepts: [{
+          scheme: "exact",
+          network: "base",
+          maxAmountRequired: "50000",
+          resource: c.req.url,
+          description: "This endpoint requires payment",
+          mimeType: "application/json",
+          payTo: "0xb7f90d83b371aee1250021732b8e5ac05198940f",
+        }],
+      }, 402);
+    });
+    
+    // Register HEAD handler - just needs to exist, middleware handles payment check
     app.all("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      const method = c.req.method;
-      
-      if (method === "HEAD") {
-        // Payment middleware handles this - just need a route handler
-        // Middleware will return 402 if payment needed, otherwise we return 200
+      if (c.req.method === "HEAD") {
+        // Let middleware run, then return 200 if endpoint exists
         await next();
-        // If middleware didn't respond, endpoint exists
         return new Response(null, { status: 200 });
       }
-      
-      if (method === "GET") {
-        // Payment middleware will intercept and return payment requirements (402)
-        // If no payment needed, it should pass through, but library doesn't have GET handler
-        // So we return payment requirement info
-        await next();
-        // If we reach here, middleware didn't handle it, return payment info
-        return c.json({
-          error: "X-PAYMENT header is required",
-          accepts: [{
-            scheme: "exact",
-            network: "base",
-            maxAmountRequired: "50000",
-            resource: c.req.url,
-            description: "This endpoint requires payment",
-            mimeType: "application/json",
-            payTo: "0xb7f90d83b371aee1250021732b8e5ac05198940f",
-          }],
-        }, 402);
-      }
-      
-      // For POST and other methods, let library handlers process
+      // For POST, let library handler process
       await next();
     });
   },
