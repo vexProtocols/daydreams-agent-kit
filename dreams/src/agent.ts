@@ -188,53 +188,39 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
   afterMount: (app) => {
     // Log all requests to entrypoints to debug 404 issues
     app.use("/entrypoints/*", async (c: any, next: any) => {
-      console.log(`[route-debug] ${c.req.method} ${c.req.path} - headers: ${JSON.stringify(Object.fromEntries(c.req.raw.headers.entries()))}`);
+      console.log(`[route-debug] ${c.req.method} ${c.req.path} - X-PAYMENT: ${c.req.header("X-PAYMENT") ? "present" : "missing"}`);
       await next();
     });
     
-    // GET handler - payment middleware handles payment verification
-    // If payment is present, middleware verifies and calls next()
-    // We need to handle GET with payment by calling the entrypoint handler
+    // GET handler - ONLY for requests with X-PAYMENT (after payment)
+    // Payment middleware handles GET without payment and returns 402 HTML
+    // If we reach here, payment middleware verified payment and called next()
     app.get("/entrypoints/:key/invoke", async (c: any) => {
       const hasPayment = !!c.req.header("X-PAYMENT");
       console.log(`[route-debug] GET handler reached for ${c.req.path} - X-PAYMENT: ${hasPayment ? "present" : "missing"}`);
       
-      // If payment is present, middleware verified it and called next()
-      // For GET with payment, we need to actually invoke the entrypoint
-      // But the library only has POST handlers, so we need to call the handler directly
-      if (hasPayment) {
-        const key = c.req.param("key");
-        console.log(`[route-debug] GET with payment - calling entrypoint handler for key: ${key}`);
-        
-        // Get the entrypoint handler from runtime and call it
-        // This is a workaround since library only registers POST routes
-        try {
-          // Parse input from query params or body
-          let input = {};
-          const queryInput = c.req.query("input");
-          if (queryInput) {
-            try {
-              input = JSON.parse(queryInput);
-            } catch (e) {
-              // Ignore parse errors
-            }
-          }
-          
-          // Call the runtime's invoke handler directly
-          // This mimics what the POST handler does
-          if (!runtime.handlers) {
-            return c.json({ error: "Runtime handlers not available" }, 500);
-          }
-          const response = await runtime.handlers.invoke(c.req.raw, { key });
-          return response;
-        } catch (error) {
-          console.error(`[route-debug] Error handling GET with payment:`, error);
-          return c.json({ error: "Internal server error" }, 500);
-        }
+      if (!hasPayment) {
+        // This shouldn't happen - middleware should have returned 402
+        // But if it does, return 402 JSON as fallback
+        console.warn(`[route-debug] GET without payment reached handler - middleware should have intercepted`);
+        return c.json({ error: "X-PAYMENT header is required" }, 402);
       }
       
-      // If no payment, middleware should have returned 402, but fallback
-      return c.json({ error: "X-PAYMENT header is required" }, 402);
+      // Payment verified - invoke the entrypoint
+      const key = c.req.param("key");
+      console.log(`[route-debug] GET with payment - invoking entrypoint: ${key}`);
+      
+      if (!runtime.handlers) {
+        return c.json({ error: "Runtime handlers not available" }, 500);
+      }
+      
+      try {
+        const response = await runtime.handlers.invoke(c.req.raw, { key });
+        return response;
+      } catch (error) {
+        console.error(`[route-debug] Error invoking entrypoint:`, error);
+        return c.json({ error: "Failed to invoke entrypoint", details: String(error) }, 500);
+      }
     });
     
     // POST handler - MUST exist for payment gateway to work after payment
