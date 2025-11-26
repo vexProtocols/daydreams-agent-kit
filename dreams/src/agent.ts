@@ -177,21 +177,31 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // The payment middleware (via app.use) handles GET/HEAD and returns 402
-    // But Hono needs route handlers to exist. Add them ONLY for GET/HEAD
-    // Do NOT use app.all() as it interferes with POST routes
+    // Log all requests to entrypoints to debug 404 issues
+    app.use("/entrypoints/*", async (c: any, next: any) => {
+      console.log(`[route-debug] ${c.req.method} ${c.req.path} - headers: ${JSON.stringify(Object.fromEntries(c.req.raw.headers.entries()))}`);
+      await next();
+    });
     
     // GET handler - payment middleware will intercept and return 402
-    // This handler only exists to prevent 404, middleware handles the actual logic
     app.get("/entrypoints/:key/invoke", async (c: any) => {
-      // Middleware should have already returned 402, but if we reach here, return payment info
+      console.log(`[route-debug] GET handler reached for ${c.req.path}`);
       return c.json({ error: "X-PAYMENT header is required" }, 402);
     });
     
     // HEAD handler - just return 200 to indicate endpoint exists
-    // Use specific method check, not app.all() to avoid interfering with POST
     app.on(["HEAD"], "/entrypoints/:key/invoke", async (c: any) => {
+      console.log(`[route-debug] HEAD handler reached for ${c.req.path}`);
       return new Response(null, { status: 200 });
+    });
+    
+    // Catch-all 404 handler for entrypoints to see what's failing
+    app.notFound(async (c: any) => {
+      if (c.req.path.startsWith("/entrypoints")) {
+        console.error(`[404] ${c.req.method} ${c.req.path} - Route not found`);
+        console.error(`[404] Headers: ${JSON.stringify(Object.fromEntries(c.req.raw.headers.entries()))}`);
+      }
+      return c.json({ error: "Not Found", path: c.req.path, method: c.req.method }, 404);
     });
   },
 });
