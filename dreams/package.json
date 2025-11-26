@@ -15,6 +15,8 @@
   "dependencies": {
     "@lucid-agents/core": "^1.9.0",
     "@lucid-agents/hono": "^0.7.1",
+    "@lucid-agents/http": "^1.9.0",
+    "@lucid-agents/payments": "^1.9.0",
     "@lucid-agents/types": "^1.5.0",
     "zod": "^4.1.12"
   },

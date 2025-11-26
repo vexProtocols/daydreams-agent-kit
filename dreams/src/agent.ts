@@ -62,9 +62,11 @@ if (process.env.PRIVATE_KEY) {
 }
 
 import { z } from "zod";
+import { createAgent } from "@lucid-agents/core";
+import { http } from "@lucid-agents/http";
+import { payments } from "@lucid-agents/payments";
 import { createAgentApp } from "@lucid-agents/hono";
 import { createAxLLMClient } from "@lucid-agents/core/axllm";
-import type { PaymentsConfig } from "@lucid-agents/types";
 import { flow } from "@ax-llm/ax";
 
 type DaydreamsNewsItem = {
@@ -76,18 +78,6 @@ type DaydreamsNewsItem = {
 };
 
 const DEFAULT_NEWS_URL = "https://daydreams.systems/api/news/latest";
-
-const configOverrides: { payments: PaymentsConfig } = {
-  payments: {
-    facilitatorUrl:
-      (process.env.FACILITATOR_URL as any) ??
-      "https://facilitator.daydreams.systems",
-    payTo:
-      (process.env.PAY_TO as `0x${string}` | undefined) ??
-      "0xb7f90d83b371aee1250021732b8e5ac05198940f",
-    network: (process.env.NETWORK as any) ?? "base",
-  },
-};
 
 
 // The library reads PRIVATE_KEY from env and expects it with 0x prefix
@@ -142,25 +132,30 @@ const daydreamsNewsFlow = flow<{ articles: string }>()
       : [],
   }));
 
-// Create agent runtime with metadata and payments config
-const agentApp = await createAgentApp(
-  {
-    agent: {
-      meta: {
-        name: "daydreams-news-agent",
-        version: "0.1.0",
-        description:
-          "Summarises the latest Daydreams ecosystem news with AxFlow each time it is called.",
+// Create agent with builder pattern
+const agent = await createAgent({
+  name: "daydreams-news-agent",
+  version: "0.1.0",
+  description:
+    "Summarises the latest Daydreams ecosystem news with AxFlow each time it is called.",
+})
+  .use(http())
+  .use(
+    payments({
+      config: {
+        payTo:
+          (process.env.PAY_TO as `0x${string}` | undefined) ??
+          "0xb7f90d83b371aee1250021732b8e5ac05198940f",
+        network: (process.env.NETWORK as any) ?? "base",
+        facilitatorUrl:
+          (process.env.FACILITATOR_URL as any) ??
+          "https://facilitator.daydreams.systems",
       },
-    },
-    payments: {
-      config: configOverrides.payments,
-    },
-  } as any,
-  {}
-);
+    })
+  )
+  .build();
 
-const { app, addEntrypoint } = agentApp;
+const { app, addEntrypoint } = await createAgentApp(agent);
 
 addEntrypoint({
   key: "latest-daydreams-news",
