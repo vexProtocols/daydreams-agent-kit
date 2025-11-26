@@ -177,29 +177,19 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // Add explicit handlers for HEAD and GET on entrypoint routes
-    // The payment gateway uses these to check endpoint availability
-    // These handlers run AFTER the library registers POST routes, so they won't interfere
-    app.all("/entrypoints/:key/invoke", async (c: any) => {
+    // Add explicit handlers for HEAD requests only
+    // GET requests should be handled by the library's payment gateway UI
+    // HEAD is used by payment gateway to check endpoint availability
+    app.all("/entrypoints/:key/invoke", async (c: any, next: any) => {
       const method = c.req.method;
       
-      // Handle HEAD requests - payment gateway uses this to check if endpoint exists
+      // Only handle HEAD requests here - let GET and POST pass through to library
       if (method === "HEAD") {
         return new Response(null, { status: 200 });
       }
       
-      // Handle GET requests - return payment requirement info
-      if (method === "GET") {
-        // Let the library handle GET if it wants to, otherwise return payment info
-        // The library might already handle this, so we check if response was already sent
-        return c.json({
-          error: "X-PAYMENT header is required",
-          message: "This endpoint requires payment. Use POST with X-PAYMENT header.",
-        }, 402);
-      }
-      
-      // For POST and other methods, let the library handle it (should already be handled)
-      // This handler should only catch HEAD and GET
+      // For all other methods (GET, POST, etc.), let the library handle them
+      await next();
     });
   },
 });
