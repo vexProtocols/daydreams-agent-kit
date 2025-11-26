@@ -192,34 +192,37 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
       await next();
     });
     
-    // GET handler - ONLY for requests with X-PAYMENT (after payment)
-    // Payment middleware handles GET without payment and returns 402 HTML
-    // If we reach here, payment middleware verified payment and called next()
-    app.get("/entrypoints/:key/invoke", async (c: any) => {
+    // REMOVED GET handler - let payment middleware handle ALL GET requests
+    // The middleware should return 402 HTML for GET without payment
+    // For GET with payment, middleware verifies and calls next(), but there's no handler
+    // So we need to add a handler ONLY for GET with payment
+    // But we can't distinguish, so we'll add a handler that checks payment
+    app.get("/entrypoints/:key/invoke", async (c: any, next: any) => {
       const hasPayment = !!c.req.header("X-PAYMENT");
-      console.log(`[route-debug] GET handler reached for ${c.req.path} - X-PAYMENT: ${hasPayment ? "present" : "missing"}`);
+      console.log(`[route-debug] GET handler - X-PAYMENT: ${hasPayment ? "present" : "missing"}`);
       
+      // If no payment, middleware should have returned 402 HTML
+      // If we reach here, middleware didn't work - try calling next() to let it handle
       if (!hasPayment) {
-        // This shouldn't happen - middleware should have returned 402
-        // But if it does, return 402 JSON as fallback
-        console.warn(`[route-debug] GET without payment reached handler - middleware should have intercepted`);
+        console.warn(`[route-debug] GET without payment - middleware should have returned 402 HTML`);
+        // Don't return - let it fall through, middleware should handle it
+        // Actually, middleware already ran, so return 402
         return c.json({ error: "X-PAYMENT header is required" }, 402);
       }
       
-      // Payment verified - invoke the entrypoint
+      // Payment present - invoke entrypoint
       const key = c.req.param("key");
-      console.log(`[route-debug] GET with payment - invoking entrypoint: ${key}`);
+      console.log(`[route-debug] GET with payment - invoking: ${key}`);
       
       if (!runtime.handlers) {
         return c.json({ error: "Runtime handlers not available" }, 500);
       }
       
       try {
-        const response = await runtime.handlers.invoke(c.req.raw, { key });
-        return response;
+        return await runtime.handlers.invoke(c.req.raw, { key });
       } catch (error) {
-        console.error(`[route-debug] Error invoking entrypoint:`, error);
-        return c.json({ error: "Failed to invoke entrypoint", details: String(error) }, 500);
+        console.error(`[route-debug] Error:`, error);
+        return c.json({ error: "Failed to invoke", details: String(error) }, 500);
       }
     });
     
