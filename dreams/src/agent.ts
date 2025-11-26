@@ -160,6 +160,14 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     // Add CORS support for payment gateway
     app.use("*", async (c, next) => {
       const origin = c.req.header("Origin");
+      const method = c.req.method;
+      const path = c.req.path;
+      
+      // Log all requests for debugging
+      if (path.includes("entrypoints")) {
+        console.log(`[cors-middleware] ${method} ${path} - Origin: ${origin || "none"}`);
+      }
+      
       if (origin) {
         c.header("Access-Control-Allow-Origin", origin);
         c.header("Access-Control-Allow-Credentials", "true");
@@ -170,7 +178,8 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       c.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-PAYMENT, X-Payment-Response");
       c.header("Access-Control-Max-Age", "86400");
       
-      if (c.req.method === "OPTIONS") {
+      if (method === "OPTIONS") {
+        console.log(`[cors-middleware] OPTIONS preflight for ${path}`);
         return new Response(null, { status: 204 });
       }
       await next();
