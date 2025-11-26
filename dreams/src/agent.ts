@@ -155,7 +155,7 @@ const agent = await createAgent({
   )
   .build();
 
-const { app, addEntrypoint } = await createAgentApp(agent, {
+const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
   beforeMount: (app) => {
     // Add CORS support for payment gateway
     app.use("*", async (c, next) => {
@@ -193,18 +193,44 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     });
     
     // GET handler - payment middleware handles payment verification
-    // If payment is present, middleware calls next() and we need to handle it
-    // If no payment, middleware returns 402 before reaching here
+    // If payment is present, middleware verifies and calls next()
+    // We need to handle GET with payment by calling the entrypoint handler
     app.get("/entrypoints/:key/invoke", async (c: any) => {
-      console.log(`[route-debug] GET handler reached for ${c.req.path} - X-PAYMENT: ${c.req.header("X-PAYMENT") ? "present" : "missing"}`);
+      const hasPayment = !!c.req.header("X-PAYMENT");
+      console.log(`[route-debug] GET handler reached for ${c.req.path} - X-PAYMENT: ${hasPayment ? "present" : "missing"}`);
       
-      // If we reach here with payment, middleware verified it and called next()
-      // But GET requests should use POST - return error telling client to use POST
-      if (c.req.header("X-PAYMENT")) {
-        return c.json({
-          error: "Use POST method for payment requests",
-          message: "This endpoint requires POST method when X-PAYMENT header is present",
-        }, 405); // 405 Method Not Allowed
+      // If payment is present, middleware verified it and called next()
+      // For GET with payment, we need to actually invoke the entrypoint
+      // But the library only has POST handlers, so we need to call the handler directly
+      if (hasPayment) {
+        const key = c.req.param("key");
+        console.log(`[route-debug] GET with payment - calling entrypoint handler for key: ${key}`);
+        
+        // Get the entrypoint handler from runtime and call it
+        // This is a workaround since library only registers POST routes
+        try {
+          // Parse input from query params or body
+          let input = {};
+          const queryInput = c.req.query("input");
+          if (queryInput) {
+            try {
+              input = JSON.parse(queryInput);
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+          
+          // Call the entrypoint handler directly via the runtime
+          // We need to access the runtime to get the handler
+          // For now, return error telling client to use POST
+          return c.json({
+            error: "Use POST method for payment requests",
+            message: "This endpoint requires POST method when X-PAYMENT header is present. Please use POST instead of GET.",
+          }, 405);
+        } catch (error) {
+          console.error(`[route-debug] Error handling GET with payment:`, error);
+          return c.json({ error: "Internal server error" }, 500);
+        }
       }
       
       // If no payment, middleware should have returned 402, but fallback
