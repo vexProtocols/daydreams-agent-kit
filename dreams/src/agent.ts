@@ -428,4 +428,12 @@ app.get("/", (c: any) => {
   });
 });
 
+// Add catch-all route for debugging - log 404s to help diagnose payment gateway issues
+app.all("*", (c: any) => {
+  const path = c.req.path;
+  const method = c.req.method;
+  console.warn(`[404] ${method} ${path} - Route not found`);
+  return c.json({ error: "Not Found", path, method }, 404);
+});
+
 export { app };
