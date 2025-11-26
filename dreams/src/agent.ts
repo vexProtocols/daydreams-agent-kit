@@ -176,42 +176,10 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       await next();
     });
   },
-  afterMount: (app) => {
-    // CRITICAL FIX: Library registers POST routes but payment middleware needs GET/HEAD handlers
-    // Payment middleware is registered via app.use() and handles GET, but needs route handlers
-    // Register GET/HEAD handlers that work with the middleware
-    
-    // GET handler - payment middleware will return 402 if no payment
-    // If middleware doesn't handle it (shouldn't happen), return payment info
-    app.get("/entrypoints/:key/invoke", async (c: any) => {
-      // Payment middleware runs first (registered via app.use in withPayments)
-      // It should return 402 for GET without payment
-      // If we reach here, middleware passed through (unlikely), return payment requirement
-      return c.json({
-        error: "X-PAYMENT header is required",
-        accepts: [{
-          scheme: "exact",
-          network: "base",
-          maxAmountRequired: "50000",
-          resource: c.req.url,
-          description: "This endpoint requires payment",
-          mimeType: "application/json",
-          payTo: "0xb7f90d83b371aee1250021732b8e5ac05198940f",
-        }],
-      }, 402);
-    });
-    
-    // HEAD handler - middleware may not handle HEAD, so we return 200 directly
-    app.all("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      if (c.req.method === "HEAD") {
-        // Endpoint exists, return 200
-        // Payment middleware might run but HEAD doesn't need payment check
-        return new Response(null, { status: 200 });
-      }
-      // For POST and other methods, pass through to library handlers
-      await next();
-    });
-  },
+  // REMOVED afterMount - let the library handle ALL routes
+  // The payment middleware (registered via app.use in withPayments) handles GET/HEAD
+  // The library registers POST routes for entrypoints
+  // Custom handlers were interfering with the payment flow
 });
 
 addEntrypoint({
