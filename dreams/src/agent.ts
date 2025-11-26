@@ -222,6 +222,9 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
           
           // Call the runtime's invoke handler directly
           // This mimics what the POST handler does
+          if (!runtime.handlers) {
+            return c.json({ error: "Runtime handlers not available" }, 500);
+          }
           const response = await runtime.handlers.invoke(c.req.raw, { key });
           return response;
         } catch (error) {
