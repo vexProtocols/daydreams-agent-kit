@@ -166,7 +166,7 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       } else {
         c.header("Access-Control-Allow-Origin", "*");
       }
-      c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
+      c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH, HEAD");
       c.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-PAYMENT, X-Payment-Response");
       c.header("Access-Control-Max-Age", "86400");
       
@@ -174,6 +174,32 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
         return new Response(null, { status: 204 });
       }
       await next();
+    });
+  },
+  afterMount: (app) => {
+    // Add explicit handlers for HEAD and GET on entrypoint routes
+    // The payment gateway uses these to check endpoint availability
+    // These handlers run AFTER the library registers POST routes, so they won't interfere
+    app.all("/entrypoints/:key/invoke", async (c: any) => {
+      const method = c.req.method;
+      
+      // Handle HEAD requests - payment gateway uses this to check if endpoint exists
+      if (method === "HEAD") {
+        return new Response(null, { status: 200 });
+      }
+      
+      // Handle GET requests - return payment requirement info
+      if (method === "GET") {
+        // Let the library handle GET if it wants to, otherwise return payment info
+        // The library might already handle this, so we check if response was already sent
+        return c.json({
+          error: "X-PAYMENT header is required",
+          message: "This endpoint requires payment. Use POST with X-PAYMENT header.",
+        }, 402);
+      }
+      
+      // For POST and other methods, let the library handle it (should already be handled)
+      // This handler should only catch HEAD and GET
     });
   },
 });
@@ -428,12 +454,5 @@ app.get("/", (c: any) => {
   });
 });
 
-// Add catch-all route for debugging - log 404s to help diagnose payment gateway issues
-app.all("*", (c: any) => {
-  const path = c.req.path;
-  const method = c.req.method;
-  console.warn(`[404] ${method} ${path} - Route not found`);
-  return c.json({ error: "Not Found", path, method }, 404);
-});
 
 export { app };
