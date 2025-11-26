@@ -176,22 +176,9 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       await next();
     });
   },
-  afterMount: (app) => {
-    // Add explicit handlers for HEAD requests only
-    // GET requests should be handled by the library's payment gateway UI
-    // HEAD is used by payment gateway to check endpoint availability
-    app.all("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      const method = c.req.method;
-      
-      // Only handle HEAD requests here - let GET and POST pass through to library
-      if (method === "HEAD") {
-        return new Response(null, { status: 200 });
-      }
-      
-      // For all other methods (GET, POST, etc.), let the library handle them
-      await next();
-    });
-  },
+  // Removed afterMount handler - let the library handle all routes
+  // The library should handle HEAD/GET/POST requests for entrypoints
+  // Custom handlers were causing 404 errors by interfering with library routing
 });
 
 addEntrypoint({
