@@ -192,12 +192,22 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       await next();
     });
     
-    // GET handler - payment middleware will intercept and return 402
-    // But we need this handler to exist so middleware can work
-    app.get("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      console.log(`[route-debug] GET handler reached for ${c.req.path}`);
-      // Payment middleware should have already returned 402, but if we reach here, return payment info
-      await next();
+    // GET handler - payment middleware handles payment verification
+    // If payment is present, middleware calls next() and we need to handle it
+    // If no payment, middleware returns 402 before reaching here
+    app.get("/entrypoints/:key/invoke", async (c: any) => {
+      console.log(`[route-debug] GET handler reached for ${c.req.path} - X-PAYMENT: ${c.req.header("X-PAYMENT") ? "present" : "missing"}`);
+      
+      // If we reach here with payment, middleware verified it and called next()
+      // But GET requests should use POST - return error telling client to use POST
+      if (c.req.header("X-PAYMENT")) {
+        return c.json({
+          error: "Use POST method for payment requests",
+          message: "This endpoint requires POST method when X-PAYMENT header is present",
+        }, 405); // 405 Method Not Allowed
+      }
+      
+      // If no payment, middleware should have returned 402, but fallback
       return c.json({ error: "X-PAYMENT header is required" }, 402);
     });
     
