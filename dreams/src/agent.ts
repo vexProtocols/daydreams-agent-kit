@@ -155,7 +155,28 @@ const agent = await createAgent({
   )
   .build();
 
-const { app, addEntrypoint } = await createAgentApp(agent);
+const { app, addEntrypoint } = await createAgentApp(agent, {
+  beforeMount: (app) => {
+    // Add CORS support for payment gateway
+    app.use("*", async (c, next) => {
+      const origin = c.req.header("Origin");
+      if (origin) {
+        c.header("Access-Control-Allow-Origin", origin);
+        c.header("Access-Control-Allow-Credentials", "true");
+      } else {
+        c.header("Access-Control-Allow-Origin", "*");
+      }
+      c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
+      c.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-PAYMENT, X-Payment-Response");
+      c.header("Access-Control-Max-Age", "86400");
+      
+      if (c.req.method === "OPTIONS") {
+        return new Response(null, { status: 204 });
+      }
+      await next();
+    });
+  },
+});
 
 addEntrypoint({
   key: "latest-daydreams-news",
