@@ -191,9 +191,12 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     });
     
     // HEAD: Just needs to exist for payment gateway checks
-    app.head("/entrypoints/:key/invoke", async (c: any) => {
-      // Payment middleware handles this, but we need the route to exist
-      return new Response(null, { status: 200 });
+    app.all("/entrypoints/:key/invoke", async (c: any, next: any) => {
+      if (c.req.method === "HEAD") {
+        // Payment middleware handles this, but we need the route to exist
+        return new Response(null, { status: 200 });
+      }
+      await next();
     });
   },
 });
