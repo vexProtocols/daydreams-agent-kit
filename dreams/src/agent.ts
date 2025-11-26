@@ -192,39 +192,8 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
       await next();
     });
     
-    // REMOVED GET handler - let payment middleware handle ALL GET requests
-    // The middleware should return 402 HTML for GET without payment
-    // For GET with payment, middleware verifies and calls next(), but there's no handler
-    // So we need to add a handler ONLY for GET with payment
-    // But we can't distinguish, so we'll add a handler that checks payment
-    app.get("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      const hasPayment = !!c.req.header("X-PAYMENT");
-      console.log(`[route-debug] GET handler - X-PAYMENT: ${hasPayment ? "present" : "missing"}`);
-      
-      // If no payment, middleware should have returned 402 HTML
-      // If we reach here, middleware didn't work - try calling next() to let it handle
-      if (!hasPayment) {
-        console.warn(`[route-debug] GET without payment - middleware should have returned 402 HTML`);
-        // Don't return - let it fall through, middleware should handle it
-        // Actually, middleware already ran, so return 402
-        return c.json({ error: "X-PAYMENT header is required" }, 402);
-      }
-      
-      // Payment present - invoke entrypoint
-      const key = c.req.param("key");
-      console.log(`[route-debug] GET with payment - invoking: ${key}`);
-      
-      if (!runtime.handlers) {
-        return c.json({ error: "Runtime handlers not available" }, 500);
-      }
-      
-      try {
-        return await runtime.handlers.invoke(c.req.raw, { key });
-      } catch (error) {
-        console.error(`[route-debug] Error:`, error);
-        return c.json({ error: "Failed to invoke", details: String(error) }, 500);
-      }
-    });
+    // COMPLETELY REMOVED - let payment middleware and library handle everything
+    // If middleware doesn't work, we'll see 404s and can debug the root cause
     
     // POST handler - MUST exist for payment gateway to work after payment
     // Library registers POST, but we need to ensure it's accessible
