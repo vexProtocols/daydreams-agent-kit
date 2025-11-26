@@ -176,9 +176,16 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       await next();
     });
   },
-  // Removed afterMount handler - let the library handle all routes
-  // The library should handle HEAD/GET/POST requests for entrypoints
-  // Custom handlers were causing 404 errors by interfering with library routing
+  afterMount: (app) => {
+    // Add catch-all error handler to log 404s and help debug payment gateway issues
+    app.notFound((c) => {
+      const path = c.req.path;
+      const method = c.req.method;
+      console.warn(`[404] ${method} ${path} - Route not found`);
+      // Return proper 404 response instead of letting it fall through
+      return c.json({ error: "Not Found", path, method }, 404);
+    });
+  },
 });
 
 addEntrypoint({
