@@ -177,18 +177,16 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // ROOT CAUSE FIX: Library only registers POST routes for entrypoints
-    // Payment middleware runs via app.use() but needs route handlers to work
-    // Add GET/HEAD handlers BEFORE calling next() to prevent 404
+    // CRITICAL FIX: Library registers POST routes but payment middleware needs GET/HEAD handlers
+    // Payment middleware is registered via app.use() and handles GET, but needs route handlers
+    // Register GET/HEAD handlers that work with the middleware
     
-    // Register GET handler - payment middleware will intercept and return 402
-    // But we need the route to exist so middleware can run
-    app.get("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      // Let payment middleware run first (it's registered via app.use)
-      // Middleware will return 402 if no payment, or call next() if payment present
-      await next();
-      // If we reach here, middleware didn't return (shouldn't happen for GET without payment)
-      // Return payment requirement as fallback
+    // GET handler - payment middleware will return 402 if no payment
+    // If middleware doesn't handle it (shouldn't happen), return payment info
+    app.get("/entrypoints/:key/invoke", async (c: any) => {
+      // Payment middleware runs first (registered via app.use in withPayments)
+      // It should return 402 for GET without payment
+      // If we reach here, middleware passed through (unlikely), return payment requirement
       return c.json({
         error: "X-PAYMENT header is required",
         accepts: [{
@@ -203,14 +201,14 @@ const { app, addEntrypoint } = await createAgentApp(agent, {
       }, 402);
     });
     
-    // Register HEAD handler - just needs to exist, middleware handles payment check
+    // HEAD handler - middleware may not handle HEAD, so we return 200 directly
     app.all("/entrypoints/:key/invoke", async (c: any, next: any) => {
       if (c.req.method === "HEAD") {
-        // Let middleware run, then return 200 if endpoint exists
-        await next();
+        // Endpoint exists, return 200
+        // Payment middleware might run but HEAD doesn't need payment check
         return new Response(null, { status: 200 });
       }
-      // For POST, let library handler process
+      // For POST and other methods, pass through to library handlers
       await next();
     });
   },
