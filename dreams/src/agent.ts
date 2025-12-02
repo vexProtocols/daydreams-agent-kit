@@ -398,41 +398,73 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // CRITICAL FIX: Payment gateway flow requires proper route handling
-    // The payment library should handle GET requests (returns 402 HTML for payment UI)
-    // But we need to ensure GET requests WITH X-PAYMENT header can invoke the entrypoint
-    
-    // Use middleware instead of route handler to avoid overriding payment library routes
-    // This middleware only handles GET requests WITH X-PAYMENT header (after payment)
-    app.use("/entrypoints/:key/invoke", async (c: any, next: any) => {
-      // Only intercept GET requests with X-PAYMENT header (after payment verification)
-      if (c.req.method === "GET" && c.req.header("X-PAYMENT")) {
-        const key = c.req.param("key");
-        
-        // Payment verified - invoke the entrypoint handler
-        if (!runtime?.handlers) {
-          return c.json({ error: "Runtime handlers not available" }, 500);
-        }
-        
-        try {
-          // Invoke the entrypoint handler
-          const response = await runtime.handlers.invoke(c.req.raw, { key });
-          return response;
-        } catch (error) {
-          console.error(`[entrypoint-error] Error invoking entrypoint ${key}:`, error);
-          const sanitizedError = sanitizeError(error);
-          return c.json({ error: sanitizedError }, 500);
-        }
-      }
-      
-      // For all other requests (GET without X-PAYMENT, POST, HEAD, etc.), let payment library handle it
-      await next();
-    });
+    // CRITICAL FIX: Payment gateway makes HEAD/GET requests after payment
+    // Handle these requests properly to avoid 404/500 errors
     
     // HEAD handler - payment gateway checks if endpoint exists
-    // This should be after the middleware so it doesn't interfere
     app.on(["HEAD"], "/entrypoints/:key/invoke", async (c: any) => {
       return new Response(null, { status: 200 });
+    });
+    
+    // GET handler with X-PAYMENT header - payment gateway invokes after payment
+    // The payment library handles POST, but gateway sends GET with X-PAYMENT
+    app.get("/entrypoints/:key/invoke", async (c: any) => {
+      const hasPayment = !!c.req.header("X-PAYMENT");
+      
+      // If no X-PAYMENT header, let payment library handle it (should return 402 HTML)
+      // But if we reach here, payment library didn't handle it, so return 402
+      if (!hasPayment) {
+        // Payment library should have handled this, but if not, return 402
+        return c.json({ error: "Payment required" }, 402);
+      }
+      
+      // GET with X-PAYMENT - invoke the entrypoint
+      // Extract input from query params or body
+      const key = c.req.param("key");
+      let input: any = undefined;
+      
+      try {
+        // Try to get input from query params
+        const inputParam = c.req.query("input");
+        if (inputParam) {
+          input = JSON.parse(inputParam);
+        }
+      } catch {
+        // Invalid JSON, use undefined
+      }
+      
+      if (!runtime?.handlers) {
+        console.error("[entrypoint-error] Runtime handlers not available");
+        return c.json({ error: "Runtime handlers not available" }, 500);
+      }
+      
+      try {
+        // Create a POST-like request for the handler
+        // The handler expects a Request object, so we'll create one
+        const handlerRequest = new Request(c.req.url, {
+          method: "POST",
+          headers: c.req.raw.headers,
+          body: input ? JSON.stringify({ input }) : undefined,
+        });
+        
+        // Invoke the entrypoint handler
+        const response = await runtime.handlers.invoke(handlerRequest, { key });
+        
+        // Ensure we return a proper Response
+        if (response instanceof Response) {
+          return response;
+        }
+        
+        // If handler returns an object, convert to JSON response
+        return c.json(response);
+      } catch (error) {
+        console.error(`[entrypoint-error] Error invoking entrypoint ${key}:`, error);
+        if (error instanceof Error) {
+          console.error(`[entrypoint-error] Error stack:`, error.stack);
+        }
+        const sanitizedError = sanitizeError(error);
+        return c.json({ error: sanitizedError }, 500);
+      }
     });
   },
 });
