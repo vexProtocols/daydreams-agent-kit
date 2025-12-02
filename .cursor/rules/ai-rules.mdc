@@ -1,3 +1,8 @@
+---
+description: Rules for Daydreams agent development with TypeScript, Node.js, and Daydreams AgentKit
+alwaysApply: true
+---
+
 # Cursor rules for Daydreams agent project
 
 ## Role
@@ -73,7 +78,3 @@ Your job is to:
 - Do not use em dashes, only normal hyphens.
 - Use clear headings and bullet lists when explaining steps.
 - Keep responses focused on the current task and avoid unnecessary digressions.
-
----
-alwaysApply: true
----
