@@ -398,73 +398,19 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // CRITICAL FIX: Payment gateway makes HEAD/GET requests after payment
-    // Handle these requests properly to avoid 404/500 errors
+    // DO NOT add custom handlers for entrypoints - let payment library handle everything
+    // The payment library registers routes for /entrypoints/:key/invoke and handles:
+    // - GET without payment → 402 HTML (payment UI)
+    // - GET with X-PAYMENT → invoke entrypoint
+    // - POST → invoke entrypoint
+    // - HEAD → handled by payment library
     
-    // HEAD handler - payment gateway checks if endpoint exists
+    // Only add HEAD handler as fallback if payment library doesn't handle it
+    // This is just for payment gateway endpoint verification
     app.on(["HEAD"], "/entrypoints/:key/invoke", async (c: any) => {
+      // Return 200 to indicate endpoint exists
+      // Payment library should handle this, but this is a safe fallback
       return new Response(null, { status: 200 });
-    });
-    
-    // GET handler with X-PAYMENT header - payment gateway invokes after payment
-    // The payment library handles POST, but gateway sends GET with X-PAYMENT
-    app.get("/entrypoints/:key/invoke", async (c: any) => {
-      const hasPayment = !!c.req.header("X-PAYMENT");
-      
-      // If no X-PAYMENT header, let payment library handle it (should return 402 HTML)
-      // But if we reach here, payment library didn't handle it, so return 402
-      if (!hasPayment) {
-        // Payment library should have handled this, but if not, return 402
-        return c.json({ error: "Payment required" }, 402);
-      }
-      
-      // GET with X-PAYMENT - invoke the entrypoint
-      // Extract input from query params or body
-      const key = c.req.param("key");
-      let input: any = undefined;
-      
-      try {
-        // Try to get input from query params
-        const inputParam = c.req.query("input");
-        if (inputParam) {
-          input = JSON.parse(inputParam);
-        }
-      } catch {
-        // Invalid JSON, use undefined
-      }
-      
-      if (!runtime?.handlers) {
-        console.error("[entrypoint-error] Runtime handlers not available");
-        return c.json({ error: "Runtime handlers not available" }, 500);
-      }
-      
-      try {
-        // Create a POST-like request for the handler
-        // The handler expects a Request object, so we'll create one
-        const handlerRequest = new Request(c.req.url, {
-          method: "POST",
-          headers: c.req.raw.headers,
-          body: input ? JSON.stringify({ input }) : undefined,
-        });
-        
-        // Invoke the entrypoint handler
-        const response = await runtime.handlers.invoke(handlerRequest, { key });
-        
-        // Ensure we return a proper Response
-        if (response instanceof Response) {
-          return response;
-        }
-        
-        // If handler returns an object, convert to JSON response
-        return c.json(response);
-      } catch (error) {
-        console.error(`[entrypoint-error] Error invoking entrypoint ${key}:`, error);
-        if (error instanceof Error) {
-          console.error(`[entrypoint-error] Error stack:`, error.stack);
-        }
-        const sanitizedError = sanitizeError(error);
-        return c.json({ error: sanitizedError }, 500);
-      }
     });
   },
 });
