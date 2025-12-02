@@ -136,10 +136,10 @@ const daydreamsNewsFlow = flow<{ articles: string }>()
 
 // Create agent with builder pattern
 const agent = await createAgent({
-  name: "daydreams-news-agent",
-  version: "0.1.0",
-  description:
-    "Summarises the latest Daydreams ecosystem news with AxFlow each time it is called.",
+    name: "daydreams-news-agent",
+    version: "0.1.0",
+    description:
+      "Summarises the latest Daydreams ecosystem news with AxFlow each time it is called.",
 })
   .use(http())
   .use(
@@ -147,7 +147,7 @@ const agent = await createAgent({
       config: {
         payTo:
           (process.env.PAY_TO as `0x${string}` | undefined) ??
-          "0xb7f90d83b371aee1250021732b8e5ac05198940f",
+          "0x12d8FE51A6416672624E5690b1871A1353032870",
         network: (process.env.NETWORK as any) ?? "base",
         facilitatorUrl:
           (process.env.FACILITATOR_URL as any) ??
@@ -432,7 +432,7 @@ addEntrypoint({
   async handler(ctx: any) {
     try {
       // SECURITY: Validate and sanitize all inputs
-      const limitInput = ctx.input?.limit;
+    const limitInput = ctx.input?.limit;
       let limit = 5; // default
       
       if (limitInput !== undefined && limitInput !== null) {
@@ -444,36 +444,36 @@ addEntrypoint({
         }
       }
 
-      const newsItems = await fetchLatestDaydreamsNews(limit);
-      const llm = axClient.ax;
-      const articlesContext = buildArticlesContext(newsItems);
+    const newsItems = await fetchLatestDaydreamsNews(limit);
+    const llm = axClient.ax;
+    const articlesContext = buildArticlesContext(newsItems);
 
-      if (!llm) {
-        const fallbackSummary = buildFallbackSummary(newsItems);
-        return {
-          output: {
-            summary: fallbackSummary,
-            highlights: newsItems.map((item) => item.title),
-            sources: newsItems,
-          },
-          model: "axllm-fallback",
-        };
-      }
-
-      const result = await daydreamsNewsFlow.forward(llm, {
-        articles: articlesContext,
-      });
-      const usageEntry = daydreamsNewsFlow.getUsage().at(-1);
-      daydreamsNewsFlow.resetUsage();
-
+    if (!llm) {
+      const fallbackSummary = buildFallbackSummary(newsItems);
       return {
         output: {
-          summary: result.summary ?? "",
-          highlights: Array.isArray(result.highlights) ? result.highlights : [],
+          summary: fallbackSummary,
+          highlights: newsItems.map((item) => item.title),
           sources: newsItems,
         },
-        model: usageEntry?.model,
+        model: "axllm-fallback",
       };
+    }
+
+    const result = await daydreamsNewsFlow.forward(llm, {
+      articles: articlesContext,
+    });
+    const usageEntry = daydreamsNewsFlow.getUsage().at(-1);
+    daydreamsNewsFlow.resetUsage();
+
+    return {
+      output: {
+        summary: result.summary ?? "",
+        highlights: Array.isArray(result.highlights) ? result.highlights : [],
+        sources: newsItems,
+      },
+      model: usageEntry?.model,
+    };
     } catch (error) {
       // SECURITY: Sanitize all errors before returning
       const sanitizedError = sanitizeError(error);
