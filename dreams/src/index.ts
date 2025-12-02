@@ -89,7 +89,13 @@ function createServerWithFallback(fetchHandler: FetchHandler, hostname: string) 
         hostname,
         fetch: fetchHandler,
         error(error) {
-          console.error("[server] Request error:", error);
+          // SECURITY: Don't log full error details in production
+          const isProduction = process.env.NODE_ENV === "production";
+          if (isProduction) {
+            console.error("[server] Request error occurred");
+          } else {
+            console.error("[server] Request error:", error);
+          }
           return new Response("Internal Server Error", { status: 500 });
         },
       });
