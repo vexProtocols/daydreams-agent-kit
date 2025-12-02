@@ -398,7 +398,46 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // SECURITY: No middleware here - let payment library handle payment routes completely
+    // CRITICAL FIX: Payment gateway makes HEAD/GET requests after payment
+    // The payment library registers POST routes, but we need to handle GET/HEAD
+    // for the payment gateway to verify and invoke after payment
+    
+    // HEAD handler - payment gateway checks if endpoint exists
+    app.on(["HEAD"], "/entrypoints/:key/invoke", async (c: any) => {
+      // Return 200 to indicate endpoint exists
+      // Payment middleware will handle actual payment verification
+      return new Response(null, { status: 200 });
+    });
+    
+    // GET handler - payment gateway invokes after payment verification
+    // This should only be reached if payment middleware verified payment
+    app.get("/entrypoints/:key/invoke", async (c: any) => {
+      const key = c.req.param("key");
+      const hasPayment = !!c.req.header("X-PAYMENT");
+      
+      // If no payment header, payment middleware should have returned 402
+      // But if we reach here, return 402 as fallback
+      if (!hasPayment) {
+        return c.json({ error: "Payment required" }, 402);
+      }
+      
+      // Payment verified - invoke the entrypoint handler
+      if (!runtime?.handlers) {
+        return c.json({ error: "Runtime handlers not available" }, 500);
+      }
+      
+      try {
+        // Invoke the entrypoint handler
+        // The library will extract input from the request automatically
+        const response = await runtime.handlers.invoke(c.req.raw, { key });
+        
+        return response;
+      } catch (error) {
+        console.error(`[entrypoint-error] Error invoking entrypoint ${key}:`, error);
+        const sanitizedError = sanitizeError(error);
+        return c.json({ error: sanitizedError }, 500);
+      }
+    });
   },
 });
 
