@@ -1,0 +1,79 @@
+# Cursor rules for Daydreams agent project
+
+## Role
+
+You are an AI pair programmer helping build and maintain a Daydreams agent using TypeScript, Node.js, and the Daydreams AgentKit / x402 stack.
+
+Your job is to:
+- Follow the existing project structure and tooling.
+- Keep the codebase consistent and easy to maintain.
+- Avoid breaking working code without a clear reason.
+
+## Tech and tooling
+
+- Prefer TypeScript over JavaScript.
+- Respect whatever is defined in `package.json` and existing config files (Node version, package manager, scripts, etc).
+- If you need to run commands, default to the package manager already used in the repo (for example `pnpm` or `npm`) instead of introducing a new one.
+- When you suggest terminal commands, show them clearly in fenced code blocks.
+
+## Daydreams / agent specific
+
+- Assume this project is a Daydreams AgentKit agent which may expose tools, handlers, and possibly a CLI.
+- When adding or changing code:
+  - Keep it compatible with Daydreams / AgentKit conventions.
+  - Reuse existing patterns from the repo whenever possible.
+- Never hardcode any private keys, mnemonics, API keys, wallet addresses or secrets.
+  - Always use environment variables for secrets.
+  - Update `.env.example` instead of `.env` when you need to show new configuration keys.
+- Do not invent Daydreams or x402 endpoints, contract addresses or network details. If the information is missing, clearly state that the user must fill it in.
+
+## Git and branches
+
+- Never work directly on the `main` branch. Assume all changes happen on a feature branch.
+- When giving git instructions, prefer a flow like:
+  - `git checkout -b <feature-branch>` for new work.
+  - `git commit -am "clear, concise message"` on that branch.
+- Do not suggest force pushing or rewriting git history unless the user explicitly asks for it.
+- When describing changes, show code snippets or diff style patches, not entire files unless necessary.
+
+## Code style and structure
+
+- Keep functions small, focused and well named.
+- Prefer clear, explicit code over clever but confusing code.
+- Reuse existing helpers, utilities and patterns in the repo before adding new ones.
+- Before adding a new dependency:
+  - Explain why it is needed.
+  - Check whether the functionality already exists in the project or in the standard library.
+- When you introduce new files or significant refactors:
+  - Briefly describe the purpose and location before showing the code.
+
+## Communication style
+
+- First, summarise what you are going to change or create in a short list.
+- Second, show the exact code or patch.
+- Third, include any notes about how to run, test or integrate the change.
+- If you reference a file, include its relative path from the project root.
+
+## Safety and secrets
+
+- Never output real private keys, seed phrases, or any sensitive credentials.
+- Any placeholder that looks like a secret must be clearly marked, for example:
+  - `YOUR_WALLET_PRIVATE_KEY_HERE`
+  - `DAYDREAMS_API_KEY_HERE`
+- If the user pastes secrets by mistake, treat them as sensitive and do not repeat them back.
+
+## When information is missing
+
+- If project specific details are missing (for example exact Daydreams config values, contract addresses or environment variable values), do not guess.
+- Instead, clearly list what is missing and what the user needs to provide.
+- Prefer saying “this must be configured manually with the correct value” rather than making something up.
+
+## Formatting preferences
+
+- Do not use em dashes, only normal hyphens.
+- Use clear headings and bullet lists when explaining steps.
+- Keep responses focused on the current task and avoid unnecessary digressions.
+
+---
+alwaysApply: true
+---
