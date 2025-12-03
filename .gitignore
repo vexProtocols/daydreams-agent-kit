@@ -170,3 +170,6 @@ tmp/
 
 # Mac/Bun artifacts
 bun.lockb
+
+# Personal documentation (not for public repo)
+PROJECT_DOCUMENTATION.md
