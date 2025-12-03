@@ -398,18 +398,82 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
-    // DO NOT add custom handlers for entrypoints - let payment library handle everything
-    // The payment library registers routes for /entrypoints/:key/invoke and handles:
-    // - GET without payment → 402 HTML (payment UI)
-    // - GET with X-PAYMENT → invoke entrypoint
-    // - POST → invoke entrypoint
-    // - HEAD → handled by payment library
+    // CRITICAL FIX: Payment library returns JSON but x402scan expects HTML with meta tags
+    // Intercept 402 responses and convert JSON to HTML when Accept: text/html is present
+    app.use("/entrypoints/:key/invoke", async (c: any, next: any) => {
+      const acceptHeader = c.req.header("Accept") || "";
+      const wantsHTML = acceptHeader.includes("text/html") || acceptHeader.includes("application/xhtml+xml") || !acceptHeader.includes("application/json");
+      
+      await next();
+      
+      // Check if response is 402 and we want HTML
+      if (wantsHTML && c.res.status === 402) {
+        try {
+          // Clone response to read body without consuming it
+          const response = c.res;
+          const contentType = response.headers.get("Content-Type") || "";
+          
+          // If it's JSON, convert to HTML
+          if (contentType.includes("application/json") || contentType.includes("json")) {
+            const clonedResponse = response.clone();
+            const text = await clonedResponse.text();
+            const jsonData = JSON.parse(text);
+            
+            // Extract x402 metadata from JSON
+            const accepts = jsonData.accepts?.[0] || {};
+            const payTo = accepts.payTo || "0x12d8FE51A6416672624E5690b1871A1353032870";
+            const amount = accepts.maxAmountRequired ? (parseInt(accepts.maxAmountRequired) / 1000000).toFixed(2) : "0.05";
+            const description = accepts.description || "Payment required";
+            const resource = accepts.resource || c.req.url;
+            const network = accepts.network || "base";
+            const asset = accepts.asset || "";
+            
+            // Generate HTML with x402 meta tags
+            const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Required</title>
+  
+  <!-- x402 Meta Tags -->
+  <meta name="x402:payTo" content="${payTo}">
+  <meta name="x402:amount" content="${amount}">
+  <meta name="x402:network" content="${network}">
+  <meta name="x402:resource" content="${resource}">
+  <meta name="x402:description" content="${description.replace(/"/g, "&quot;")}">
+  ${asset ? `<meta name="x402:asset" content="${asset}">` : ""}
+  
+  <!-- OG Tags -->
+  <meta property="og:title" content="Payment Required">
+  <meta property="og:description" content="${description.replace(/"/g, "&quot;")}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${resource}">
+  <meta property="og:image" content="https://daydreams.systems/og-image.png">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://daydreams.systems/favicon.png">
+</head>
+<body>
+  <h1>Payment Required</h1>
+  <p>${description}</p>
+  <p>Amount: ${amount} USDC</p>
+  <p>Network: ${network}</p>
+  <p>Pay To: ${payTo}</p>
+</body>
+</html>`;
+            
+            return c.html(html, 402);
+          }
+        } catch (error) {
+          // If conversion fails, return original response
+          console.error("[x402-html] Failed to convert JSON to HTML:", error);
+        }
+      }
+    });
     
-    // Only add HEAD handler as fallback if payment library doesn't handle it
-    // This is just for payment gateway endpoint verification
+    // HEAD handler - payment gateway checks if endpoint exists
     app.on(["HEAD"], "/entrypoints/:key/invoke", async (c: any) => {
-      // Return 200 to indicate endpoint exists
-      // Payment library should handle this, but this is a safe fallback
       return new Response(null, { status: 200 });
     });
   },
