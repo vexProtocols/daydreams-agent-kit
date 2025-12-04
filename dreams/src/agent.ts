@@ -423,12 +423,47 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
           "Origin": c.req.header("Origin"),
           "Referer": c.req.header("Referer"),
         });
+        
+        // Try to log request body for POST requests
+        if (c.req.method === "POST") {
+          try {
+            const body = await c.req.clone().json().catch(() => null);
+            console.log("[x402scan-debug] Request body:", body);
+          } catch (e) {
+            console.log("[x402scan-debug] Could not read request body:", e);
+          }
+        }
       }
       
-      await next();
+      try {
+        await next();
+      } catch (error) {
+        console.error("[x402scan-debug] Error in middleware:", error);
+        if (error instanceof Error) {
+          console.error("[x402scan-debug] Error stack:", error.stack);
+        }
+        // Return proper error response instead of throwing
+        return c.json({ 
+          error: { 
+            code: "internal_error", 
+            message: "Internal server error" 
+          } 
+        }, 500);
+      }
       
-      if (isX402Scan && c.res.status === 402) {
-        console.log("[x402scan-debug] Response status: 402 (payment required)");
+      if (isX402Scan) {
+        console.log("[x402scan-debug] Response status:", c.res.status);
+        if (c.res.status >= 500) {
+          console.error("[x402scan-debug] 5xx error detected - check logs above");
+          // Try to get error details from response
+          try {
+            const cloned = c.res.clone();
+            const text = await cloned.text();
+            console.error("[x402scan-debug] Error response body:", text);
+          } catch (e) {
+            console.error("[x402scan-debug] Could not read error response");
+          }
+        }
       }
     });
     
@@ -542,6 +577,7 @@ addEntrypoint({
   }),
   async handler(ctx: any) {
     try {
+      console.log("[entrypoint-handler] Handler invoked with input:", ctx.input);
       // SECURITY: Validate and sanitize all inputs
     const limitInput = ctx.input?.limit;
       let limit = 5; // default
@@ -587,6 +623,10 @@ addEntrypoint({
     };
     } catch (error) {
       // SECURITY: Sanitize all errors before returning
+      console.error("[entrypoint-handler] Error in handler:", error);
+      if (error instanceof Error) {
+        console.error("[entrypoint-handler] Error stack:", error.stack);
+      }
       const sanitizedError = sanitizeError(error);
       throw new Error(sanitizedError);
     }
