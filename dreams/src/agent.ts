@@ -218,10 +218,18 @@ function isPaymentRequest(c: any): boolean {
   // 1. Requests to entrypoint routes (payment-protected)
   // 2. Requests with X-PAYMENT header (payment gateway callbacks)
   // 3. Requests with X-Payment-Response header (payment responses)
+  // 4. Requests from x402scan (may use different headers)
   const path = c.req.path || "";
-  const hasPaymentHeader = Boolean(c.req.header("X-PAYMENT") || c.req.header("X-Payment-Response"));
+  const hasPaymentHeader = Boolean(
+    c.req.header("X-PAYMENT") || 
+    c.req.header("X-Payment-Response") ||
+    c.req.header("X-Payment-Proof") ||
+    c.req.header("Authorization")?.includes("x402")
+  );
   const isEntrypointRoute = path.includes("/entrypoints");
-  return isEntrypointRoute || hasPaymentHeader;
+  const isX402Scan = c.req.header("User-Agent")?.includes("x402scan") || 
+                     c.req.header("Referer")?.includes("x402scan");
+  return isEntrypointRoute || hasPaymentHeader || isX402Scan;
 }
 
 function isValidOrigin(origin: string | null, isPayment: boolean): boolean {
@@ -398,6 +406,32 @@ const { app, addEntrypoint, runtime } = await createAgentApp(agent, {
     });
   },
   afterMount: (app) => {
+    // DEBUG: Log x402scan requests to understand what headers/body they send
+    app.use("/entrypoints/:key/invoke", async (c: any, next: any) => {
+      const isX402Scan = c.req.header("Referer")?.includes("x402scan") || 
+                        c.req.header("Origin")?.includes("x402scan") ||
+                        c.req.header("User-Agent")?.includes("x402scan");
+      
+      if (isX402Scan) {
+        console.log("[x402scan-debug] Request method:", c.req.method);
+        console.log("[x402scan-debug] Headers:", {
+          "X-PAYMENT": c.req.header("X-PAYMENT"),
+          "X-Payment-Response": c.req.header("X-Payment-Response"),
+          "X-Payment-Proof": c.req.header("X-Payment-Proof"),
+          "Authorization": c.req.header("Authorization"),
+          "Content-Type": c.req.header("Content-Type"),
+          "Origin": c.req.header("Origin"),
+          "Referer": c.req.header("Referer"),
+        });
+      }
+      
+      await next();
+      
+      if (isX402Scan && c.res.status === 402) {
+        console.log("[x402scan-debug] Response status: 402 (payment required)");
+      }
+    });
+    
     // CRITICAL FIX: Payment library returns JSON but x402scan expects HTML with meta tags
     // Intercept 402 responses and convert JSON to HTML when Accept: text/html is present
     app.use("/entrypoints/:key/invoke", async (c: any, next: any) => {
