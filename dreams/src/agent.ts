@@ -554,10 +554,16 @@ addEntrypoint({
     "Fetch and summarise the latest Daydreams news items into a short briefing.",
   input: z.object({
     limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(10)
+      .union([z.number(), z.string()])
+      .transform((val) => {
+        // Convert string to number if needed (x402scan sends strings)
+        if (typeof val === "string") {
+          const parsed = parseInt(val, 10);
+          return isNaN(parsed) ? undefined : parsed;
+        }
+        return val;
+      })
+      .pipe(z.number().int().min(1).max(10).optional())
       .optional()
       .describe("Maximum number of news items to include (default 5)."),
   }),
